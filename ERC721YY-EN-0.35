@@ -13,6 +13,7 @@ A one-sentence summary of the protocol: NFT trading functionality is written int
 The vast majority of current NFT transactions rely on NFT trading platforms that act as intermediaries, such as OS, LR, X2, etc., which has the following problems.
 
 1, security issues. For example, setApprovalForAll brings security problems. nft trading platform to obtain the permission to carry out unnecessary risk exposure, once the trading platform contract problems, will bring huge losses to the whole industry.
+
 The function can authorize anyone to control the NFT, which was originally designed to allow third parties such as Rarible and OpenSea to control the NFT on behalf of the user, then multiple NFT transactions, only need to authorize once, the subsequent pending transactions through the signature to save gas fees. However, once the function is authorized, an attacker can transfer all NFTs in the victim's name to his or her account by using the transferFrom function on the contract. This function is very dangerous by design, and users are not always aware of what permissions they are giving by signing transactions. Most of the time, victims think these are just routine transactions.
 
 In addition, if a user has authorized a certain category of their NFTs, in OpenSea, the latest phishing scam, which is based on signature technology, allows the victim to place an order at the OS at a very low price and designate the recipient, and then complete the transaction for undue profit. Ordinary users are defenseless against this.
@@ -113,6 +114,7 @@ Q: So where should the NFT trading platform go?
 A: The agreement changes the current profit model of all trading platforms, trading platforms can focus on improving the level of service in order to collect service fees.
 
 For example, NFT-AMMs, which provides instant liquidity, LPs capture the value of the service fee for providing liquidity rather than transaction fees.
+
 Our study of NFT-AMMs, and the proposed model
 
 https://mirror.xyz/5660.eth/C-dILZBAtZz5D4lSJi-DiJ7oy6ToOkYVolF26NibwiQ 

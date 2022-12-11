@@ -125,6 +125,10 @@ https://mirror.xyz/5660.eth/C-dILZBAtZz5D4lSJi-DiJ7oy6ToOkYVolF26NibwiQ
 
 答：可以实现，但会复杂一些，但我们暂时不想在ERC721协议层实现这么复杂的功能，且似乎暂时无法避开setApprovalForAll。另一个视角，反过来理解，offer其实是ETH或ERC20代币的挂单，所以后续可能需要完善的是ERC20协议。
 
+问：如何理解transfer和swap
+
+答：transfer相当于指定地址和0价格的swap。通过对swap机制的设计，是可以兼容transfer功能的，但为了兼容当前的ERC721应用，所以暂时不做考虑。
+
 有任何意见和建议，欢迎和CR取得联系
 
 推特：https://twitter.com/web3saltman

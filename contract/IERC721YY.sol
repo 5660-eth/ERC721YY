@@ -4,40 +4,51 @@
 
  interface IERC721YY {
 
-    /// Logged when the guard of an NFT is changed 
-    /// @notice Emitted when  the `guard` is changed
-    /// The zero address for guard indicates that there is no guard address
-   event OnSaleInfo(uint256 indexed tokenId,uint256 price,uint64 expires);
+    /// Logged when the NFT is listed,delisted or changed listing
+    /// @notice Emitted when the NFT is listed,delisted or changed listing
+    /// The zero price indicates that NFT is not listing
+    /// @param tokenId The NFT to change sale info for
+    /// @param price The listing price
+    /// @param expires The listing expires
+    event OnSaleInfo(uint256 indexed tokenId,uint256 price,uint64 expires);
 
-   event SawpInfo(uint256 indexed tokenId, uint256 price, address indexed tokenOwner,address indexed sender);
+    /// Logged when the NFT is traded
+    /// @notice Emitted when the NFT is traded
+    /// The price cannot be 0
+    /// @param tokenId The NFT to be traded for
+    /// @param price The trading price
+    /// @param buyer The buyer of the NFT
+    /// @param seller The seller of the NFT
+    event SwapInfo(uint256 indexed tokenId, uint256 price, address indexed buyer,address indexed seller);
     
-    /// @notice Remove the guard of the NFT
-    /// Only guard can remove its own guard role
-    /// @dev The guard address is set to 0 address
+    /// @notice Set or change listing info of the NFT
+    /// @dev The price cannot be 0
     /// Throws if `tokenId` is not valid NFT
-    /// @param tokenId The NFT to remove the guard address for
-    function setSwap(uint256 tokenId,uint256 price,uint64 expires) external;
+    /// @param tokenId The NFT to set or change listing for
+    /// @param price  The listing price
+    /// @param expires The listing expires
+    function setList(uint256 tokenId,uint256 price,uint64 expires) external;
 
-    function revokeSwap(uint256 tokenId) external;
+    /// @notice Delist NFT
+    /// @dev caller must be owner or approved
+    /// @param tokenId  The delisted NFT
+    function cancelList(uint256 tokenId) external;
 
-        
-    /// @notice Transfer the NFT and remove its guard role
-    /// @dev The NFT is transferred to `to`and the guard address is set to 0 address
-    /// Throws if `tokenId` is not valid NFT
-    /// @param tokenId The NFT to get transferred for
-    function acceptSwap(uint256 tokenId) external payable;
+    /// @notice Buyer accept the price of the listing NFT and the NFT is traded
+    /// @param tokenId The NFT to be traded for
+    function acceptList(uint256 tokenId) external payable;
     
-    /// @notice  Owner can set guard of the NFT and guard can modifiy guard of the NFT
-    /// If the NFT has a guard role, the owner of the NFT cannot modify guard
-    /// @dev The newGuard can not be zero address
-    /// Throws if `tokenId` is not valid NFT
-    /// @param tokenId The NFT to get the guard address for
-    function priceAt(uint256 tokenId) external returns(uint256);
+    /// @notice Get the price of the listing NFT
+    /// @dev The zero price indicates that NFT is not listing
+    /// @param tokenId The NFT to be listed for
+    /// @return The listing price of the NFT
+    function listPriceAt(uint256 tokenId) external returns(uint256);
 
-    /// @notice Get the guard address of the NFT
-    /// @dev The zero address indicates that there is no guard
-    /// Throws if `tokenId` is not valid NFT
-    /// @param tokenId The NFT to get the guard address for
-    /// @return The guard address for the NFT
-   function expiresOf(uint256 tokenId) external returns (uint64);   
+
+    /// @notice Get the expires of the listing NFT
+    /// @dev The zero expires indicates that NFT is not listing
+    /// @param tokenId The NFT to be listed for
+    /// @return The listing expires of the NFT
+    function listExpiresOf(uint256 tokenId) external returns (uint64);   
+
 }

@@ -35,7 +35,7 @@ abstract contract ERC721YY is ERC721QS, IERC721YY {
         /// Only the contract owner can set the copyright fee rate
         require(msg.sender == feeOperator, "Only the contract owner can set the copyright fee rate");
         /// The rate must be between 0 and 1,0000 (inclusive)
-        require(rate >= 0 && rate <= 10000, "Copyright fee rate must be between 0 and 1,000");
+        require(rate >= 0 && rate <= 10000, "Copyright fee rate must be between 0 and 10,000");
         feeRate = rate;
     }
 

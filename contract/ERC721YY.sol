@@ -7,71 +7,74 @@ import "./IERC721YY.sol";
 
 abstract contract ERC721YY is ERC721QS, IERC721YY {
 
-    struct SwapInfo 
-    {
-        uint256 price;   // NFT价格，考虑数据类型准确与否,价格单位为wei;
-        uint64 expires; // unix timestamp, price expires
-    }
+    struct ListInfo {uint256 price;uint64 expires;}
 
-    mapping (uint256  => SwapInfo) internal _sellers;
+    mapping (uint256  => ListInfo) internal _sellers;
 
-    // Address of the contract owner
-    address public feeOperator;
-    // Address to receive the copyright fee
+    /// Or can adopt EIP-2981
+    /// Address of the contract owner
+    address feeOperator;
+    /// Address to receive the copyright fee
     address payable public feeRecipient;
-
-    /// 注意，solidity中无小数，用0-1000；
-    // Copyright fee rate ( e.g. 100 for 10%)
+    /// Copyright fee rate ( e.g. 100 for 1%)
     uint256 public feeRate;
 
     constructor(string memory name_, string memory symbol_) payable ERC721(name_, symbol_) {
         feeOperator = msg.sender;
     }
 
-    // Set the address that will receive the copyright fee
+    /// Set the address that will receive the copyright fee
     function setFeeRecipient(address payable recipient) public {
-        // Only the contract owner can set the copyright fee recipient
+        /// Only the contract owner can set the copyright fee recipient
         require(msg.sender == feeOperator, "Only the contract owner can set the copyright fee recipient");
         feeRecipient = recipient;
     }
 
-    // Set the copyright fee rate
+    /// Set the copyright fee rate
     function setfeeRate(uint256 rate) public {
-        // Only the contract owner can set the copyright fee rate
+        /// Only the contract owner can set the copyright fee rate
         require(msg.sender == feeOperator, "Only the contract owner can set the copyright fee rate");
-        // The rate must be between 0 and 1,000 (inclusive)
-        require(rate >= 0 && rate <= 1000, "Copyright fee rate must be between 0 and 1,000"); ///版权税率区间，0-1000,10意味着1%
+        /// The rate must be between 0 and 1,0000 (inclusive)
+        require(rate >= 0 && rate <= 10000, "Copyright fee rate must be between 0 and 1,000");
         feeRate = rate;
     }
-    ///查询版权税,前面已经定义
 
     function getRate() public virtual returns(uint256){
         return feeRate;
     }
 
-    function setSwap(uint256 tokenId,uint256 price,uint64 expires) public virtual{
-        ///----和721QS兼容，有guard时，无法挂单；（或者有guard时,只有guard能挂单，本方法复杂些,暂未考虑）
-        address guard=guardOf(tokenId);
-        require(guard==address(0),"token has guard");
-        ///----------
+    /// @notice Set or change listing info of the NFT
+    /// @dev The price cannot be 0
+    /// Throws if `tokenId` is not valid NFT
+    /// @param tokenId The NFT to set or change listing for
+    /// @param price  The listing price
+    /// @param expires The listing expires
+    function setList(uint256 tokenId,uint256 price,uint64 expires) public virtual{
+        ///@dev Consider compatibility with ERC721QS/EIP6147, when there is a guard, the order cannot be placed.
+        ///++address guard=guardOf(tokenId);
+        ///++require(guard==address(0),"token has guard");
         require(_isApprovedOrOwner(msg.sender, tokenId), "ERC721YY: transfer caller is not owner nor approved");
-        SwapInfo storage info =  _sellers[tokenId];
+        ListInfo storage info =  _sellers[tokenId];
         require(price>0,"price can not be set to 0");
         info.price=price;
         info.expires=expires;
         emit OnSaleInfo(tokenId,price,expires); 
     }
 
-    function revokeSwap(uint256 tokenId) public virtual {
+    /// @notice Delist NFT
+    /// @dev caller must be owner or approved
+    /// @param tokenId The delisted NFT
+    function cancelList(uint256 tokenId) public virtual {
+         require(isOnSale(tokenId),"not on sale");
          require(_isApprovedOrOwner(msg.sender, tokenId), "ERC721YY: transfer caller is not owner nor approved");
          delete _sellers[tokenId];
          emit OnSaleInfo(tokenId,0,0);
     }
 
-///查询NFT是否在售
-    function isOnSale(uint256 tokenId) internal virtual returns(bool){  ///选择public可视性亦可以
-        if(_sellers[tokenId].price > 0 && _sellers[tokenId].expires >=  block.timestamp)
-        {
+    /// @notice Query whether the NFT is for sale
+    /// @return Whether the NFT is for sale
+    function isOnSale(uint256 tokenId) internal virtual returns(bool){
+        if(_sellers[tokenId].price > 0 && _sellers[tokenId].expires > block.timestamp){
             return true;
         }
         else{
@@ -79,8 +82,11 @@ abstract contract ERC721YY is ERC721QS, IERC721YY {
         }
     }
 
-///如果在售，返回价格；否则，返回0；
-    function priceAt(uint256 tokenId) public virtual returns(uint256){
+    /// @notice Get the price of the listing NFT
+    /// @dev The zero price indicates that NFT is not listing
+    /// @param tokenId The NFT to be listed for
+    /// @return The listing price of the NFT
+    function listPriceAt(uint256 tokenId) public virtual returns(uint256){
         if( isOnSale(tokenId)){
             return _sellers[tokenId].price;
         }
@@ -90,8 +96,11 @@ abstract contract ERC721YY is ERC721QS, IERC721YY {
        
     }
 
-///如果在售，返回期限；否则，返回0；
-    function expiresOf(uint256 tokenId) public returns (uint64){
+    /// @notice Get the expires of the listing NFT
+    /// @dev The zero expires indicates that NFT is not listing
+    /// @param tokenId The NFT to be listed for
+    /// @return The listing expires of the NFT
+    function listExpiresOf(uint256 tokenId) public returns (uint64){
         if(isOnSale(tokenId)){
             return _sellers[tokenId].expires;
         }
@@ -100,148 +109,155 @@ abstract contract ERC721YY is ERC721QS, IERC721YY {
         }
     }
 
+    /// @notice Buyer accept the price of the listing NFT and the NFT is traded
+    /// @param tokenId The NFT to be traded for
     function acceptSwap(uint256 tokenId) public payable virtual {
 
         address sender = _msgSender();
-        address owner =ownerOf(tokenId);
-        //检查NFT是否在售
+        address owner = ownerOf(tokenId);
         require(isOnSale(tokenId), "Token is not on sale");
-
-        // Check that the caller is not the owner of the token
+        /// Check that the caller is not the owner of the token
         require(owner != sender, "ERC721YY: owner cannot accept a swap for their own token");
+        uint256 amount = listPriceAt(tokenId);
+        /// Check that the caller has transferred the required amount of Ether to the contract.
+        require(msg.value == amount, "Incorrect amount of Ether transferred");
+        /// Check that the contract has enough Ether to pay for the transfers
 
-        uint256 amount = priceAt(tokenId);
+        ///++ require(address(this).balance >= amount, "Not enough Ether in contract to complete the transfer");
 
-        // Check that the caller has transferred the required amount of Ether to the contract。检查调用者是否转移了足够的ETH到合约;
-        require(msg.value >= amount, "Incorrect amount of Ether transferred");
-        
-        // Check that the contract has enough Ether to pay for the transfers
-        require(address(this).balance >= amount, "Not enough Ether in contract to complete the transfer");//注意address(this).balance
-
-        // Convert the token owner's address to a payable type to allow them to receive the payment
-
+        /// Convert the token owner's address to a payable type to allow them to receive the payment
         address payable tokenOwner = payable(owner);
-
         /// Calculate the copyright fee based on the sale price and the fee rate
-        uint256 copyrightFee = amount * feeRate / 1000;    ///solidity0.8.0以上默认采用了checked模式，结果溢出会出现失败异常回退。
-        ///计算NFT所有者能够得到的收入
-        uint256 sellerGetFee = amount * 1000 - copyrightFee;
-
-        // Remove the token from the list of tokens for sale
+        uint256 copyrightFee = amount * feeRate / 10000;
+        uint256 sellerGetFee = amount - copyrightFee;
+        /// Remove the token from the list of tokens for sale
         delete _sellers[tokenId];
-
-        // Transfer the copyright fee to the specified recipient
-        feeRecipient.transfer(copyrightFee); ///ETH不够会报错回退
-
-        // Transfer the sale amount minus the copyright fee to the token owner
+        /// Transfer the copyright fee to the specified recipient
+        feeRecipient.transfer(copyrightFee); 
+        /// Transfer the sale amount minus the copyright fee to the token owner
         tokenOwner.transfer(sellerGetFee);
-
-        // Transfer ownership of the token to the buyer
+        /// Transfer ownership of the token to the buyer
         _transfer(tokenOwner, sender, tokenId);
         /// OR _safeTransfer(owner,sender,tokenId,"swap success");
-
-        emit SawpInfo(tokenId, amount, tokenOwner,sender);
+        emit SwapInfo(tokenId, amount, sender,tokenOwner);
     }
 
-///重写721QS中的`updateGuard`函数，当更新guard时，清除挂单信息
-
-    function updateGuard(uint256 tokenId,address newGuard,bool allowNull) internal virtual override {
-
-        address owner = ownerOf(tokenId); 
-
-        address guard = guardOf(tokenId);
-        if (!allowNull) {
-            require(newGuard != address(0), "New guard can not be null");
-        }
-         if (guard != address(0)) { 
-            require(guard == _msgSender(), "only guard can change it self"); 
-        } else { 
-            require(owner == _msgSender(), "only owner can set guard"); 
-        } 
-
-        if (guard != address(0) || newGuard != address(0)) {
-            ///token_guard_map[tokenId]可视性为internal，能否在子合约中修改？
-            token_guard_map[tokenId] = newGuard;
-            ///设置guard时，清除挂单信息
-            delete _sellers[tokenId];
-            emit UpdateGuardLog(tokenId, newGuard, guard);
-        }
+    function _beforeTokenTransfer(address from,address to,uint256 tokenId,uint256 batchSize) internal virtual override{
+        super._beforeTokenTransfer(from, to, tokenId, batchSize);
+        if(isOnSale(tokenId))
+            delete  _sellers[tokenId];
+            emit OnSaleInfo(tokenId,0,0);
     }
-//-----}
 
-
+///Rewrite the `updateGuard` function in 721QS, when updating the guard, clear the pending order information
 /*
-报价：买家对某个 NFT 的报价，可以理解为买家愿意为该 NFT 支付的价格。
-接受：卖家对某个 NFT 收到的报价进行接受，同意将该 NFT 转移给买家。
-那么，我们可以按照以下步骤来实现：
-
-在合约中添加一个新的结构体 Offer 来存储报价信息。
-在合约中添加一个映射 mapping (uint256 => mapping (address => Offer)) 来存储每个 NFT 的每个买家的报价信息。
-在合约中添加一个新的函数 function makeOffer(uint256 tokenId, uint256 price) public 来实现买家报价的功能。
-在合约中添加一个新的函数 function acceptOffer(uint256 tokenId, address buyer) public 来实现卖家接受报价的功能。
-在合约中添加一个新的函数 function cancelOffer(uint256 tokenId, address buyer) public 来实现买家取消报价的功能。
+    function updateGuard(uint256 tokenId,address newGuard,bool allowNull) internal virtual override {
+        super.updateGuard(tokenId,newGuard,allowNull);
+        delete _sellers[tokenId];
+    }
 */
+    struct OfferInfo {uint256 price;uint64 expires;}
 
-    struct Offer {
-        uint256 price;   // NFT 价格
-        uint64 expires;  // 报价过期时间，以 unix timestamp 表示
-}
-//为什么该映射不需要声明可见性或用internal
-    mapping (uint256 => mapping (address => Offer))  _offers;
+    mapping (uint256 => mapping (address => OfferInfo))  _offers;
 
-// 注意：这里需要使用 payable 关键字修饰函数，表示合约可以接收以太币
+    event OnOfferInfo(uint256 indexed tokenId, uint256 price,uint64 expires,address indexed buyer);
+
+    /// @notice Set or change the offer for the NFT
+    /// @dev The price cannot be 0
+    /// Throws if `tokenId` is not valid NFT
+    /// @param tokenId The NFT to make offer for
+    /// @param price  The offer price
+    /// @param expires The offer expires
     function makeOffer(uint256 tokenId, uint256 price,uint64 expires) public payable {
-    // 买家必须拥有足够的以太币来支付报价
-    require(msg.value >= price, "Insufficient ether to make offer");
-
-    // 将报价的 ETH 转移到合约地址
-    address payable addresspayable = payable (address(this));
-
-    addresspayable.transfer(price);
-
-    // 记录报价信息
-    _offers[tokenId][msg.sender] = Offer({
-        price: price,
-        expires: expires 
-        });
+        require(price>0,"price can not be set to 0");
+        require(msg.value == price, "Insufficient ether to make offer");
+        address payable addresspayable = payable (address(this));
+        addresspayable.transfer(price);
+        _offers[tokenId][msg.sender] = OfferInfo({
+            price: price,
+            expires: expires 
+            });
+        emit OnOfferInfo(tokenId, price, expires,msg.sender);
+    ///Offer storage offer =  _offers[tokenId][msg.sender];
+    ///offer.price = price;
+    ///offer.expires = expires;
     }
-    //Offer.price = price;
-    //offer.expries = expries;
 
-    // 实现卖家接受报价的功能
+    /// @notice Query whether the buyer has made an offer for that NFT
+    /// @return Whether the buyer has made an offer for that NFT
+    function isOnOffer(uint256 tokenId, address buyer) internal virtual returns(bool){
+        OfferInfo storage offer = _offers[tokenId][buyer];
+        if(offer.price > 0&&offer.expires > block.timestamp){
+            return true;
+        }
+        else{
+            return false;
+        }
+    }
+
+    /// @notice Seller accept the offer price of the NFT and the NFT is traded
+    /// @param tokenId The NFT to be traded for
+    /// @param buyer The buyer making an offer
     function acceptOffer(uint256 tokenId, address buyer) public payable{
-    // 只有拥有 NFT 的卖家才能接受报价
+        ///@dev Consider compatibility with ERC721QS/EIP6147, when there is a guard, the owner cannot `acceptOffer`
+        ///require(guardOf(tokenId)==address(0);
         require(ownerOf(tokenId) == msg.sender, "Only the owner of the token can accept offers");
-
-    // 检查报价是否存在
-         Offer storage offer = _offers[tokenId][buyer];
-        require(offer.price > 0, "Offer does not exist");
-
-    // 检查报价是否过期
-        require(offer.expires > block.timestamp, "Offer has expired");
-
-    // 检查合约地址余额是否充足
+        OfferInfo storage offer = _offers[tokenId][buyer];
+        require(isOnOffer(tokenId,buyer), "Offer does not exist");
         require(address(this).balance>=offer.price,"Not enough Ether in contract to complete the transfer");
-
-    // 清除报价信息
+        uint256 copyrightFee = offer.price * feeRate / 10000;
+        uint256 sellerGetFee = offer.price - copyrightFee;
         delete _offers[tokenId][buyer];
-
-    // 接受报价并将 NFT 转移给买家
-        _transfer(msg.sender, buyer, tokenId);
-    // 卖家获得ETH
         address payable sender =payable(msg.sender);
+        sender.transfer(sellerGetFee);
+        feeRecipient.transfer(copyrightFee); 
+        _transfer(msg.sender, buyer, tokenId);
 
-        sender.transfer(offer.price);
+        emit SwapInfo(tokenId, offer.price, buyer,msg.sender);
     }
 
-    // 实现买家取消报价的功能
-    function cancelOffer(uint256 tokenId) public {
-    // 检查报价是否存在
-        Offer storage offer = _offers[tokenId][msg.sender];
-        require(offer.price > 0, "Offer does not exist");
-    // 清除报价信息
+    /// @notice Cancel offer on the NFT
+    /// @dev Offer need to exist
+    /// @param tokenId  The NFT to cancel offer on 
+    function cancelOffer(uint256 tokenId) public payable{
+        require(isOnOffer(tokenId,msg.sender), "Offer does not exist");
+        OfferInfo storage offer = _offers[tokenId][msg.sender];
+        address  payable sender=payable(msg.sender);
+        uint256 price = offer.price;
+        require(address(this).balance>=offer.price,"Not enough Ether in contract to complete the transfer");
         delete _offers[tokenId][msg.sender];
-    // 清除报价信息
+        sender.transfer(price);
+        emit OnOfferInfo(tokenId, 0, 0,msg.sender);
     }
-}
 
+    /// @notice Query the buyer's offer price for the NFT
+    /// @dev The zero price indicates that buyer dose not make an offer for the NFT
+    /// @param tokenId The NFT to be maked offer for
+    /// @param buyer the buyer's address
+    /// @return The buyer's offer price for the NFT
+    function offerPriceAt(uint256 tokenId, address buyer) public virtual returns(uint256){
+        OfferInfo storage offer = _offers[tokenId][buyer];
+        if(isOnOffer(tokenId,buyer)){
+            return offer.price;
+        }
+        else{
+            return 0;
+        }
+    }
+
+    /// @notice Query the buyer's offer expires for the NFT
+    /// @dev The zero expires indicates that buyer dose not make an offer for the NFT
+    /// @param tokenId The NFT to be maked offer for
+    /// @param buyer the buyer's address
+    /// @return The buyer's offer expires for the NFT
+    function offerExpiresOf(uint256 tokenId, address buyer) public virtual returns(uint64){
+        OfferInfo storage offer = _offers[tokenId][buyer];
+        if(isOnOffer(tokenId,buyer)){
+            return offer.expires;
+        }
+        else{
+            return 0;
+        }
+    }
+
+}

@@ -11,6 +11,9 @@ abstract contract ERC721YY is ERC721QS, IERC721YY {
 
     mapping (uint256  => ListInfo) internal _sellers;
 
+    /*///////////////////////////////////////////////////////////////
+                            Set Royalties                     
+    //////////////////////////////////////////////////////////////*/
     /// Or can adopt EIP-2981
     /// Address of the contract owner
     address feeOperator;
@@ -42,6 +45,10 @@ abstract contract ERC721YY is ERC721QS, IERC721YY {
     function getRate() public virtual returns(uint256){
         return feeRate;
     }
+
+    /*///////////////////////////////////////////////////////////////
+                    Functions related to list                    
+    //////////////////////////////////////////////////////////////*/
 
     /// @notice Set or change listing info of the NFT
     /// @dev The price cannot be 0
@@ -156,6 +163,11 @@ abstract contract ERC721YY is ERC721QS, IERC721YY {
         delete _sellers[tokenId];
     }
 */
+
+    /*///////////////////////////////////////////////////////////////
+                    Functions related to make offer                    
+    //////////////////////////////////////////////////////////////*/
+
     struct OfferInfo {uint256 price;uint64 expires;}
 
     mapping (uint256 => mapping (address => OfferInfo))  _offers;
